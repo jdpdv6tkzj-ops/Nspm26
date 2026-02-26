@@ -399,16 +399,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
+        // 只添加未与Electron进程匹配的Helper进程
+        // 避免Electron应用（如Trae）的流量被重复计算
         for (appName, helpers) in helperProcesses {
-            var totalBytes: UInt64 = 0
-            var firstPid: Int32? = nil
-            for (index, helper) in helpers.enumerated() {
-                totalBytes += helper.bytes
-                if index == 0 {
-                    firstPid = helper.pid
+            // 检查这个appName是否已经有匹配的Electron进程
+            let hasMatchedElectron = electronProcesses.contains { electron in
+                for helper in helpers {
+                    let pidDiff = abs(electron.pid - helper.pid)
+                    if pidDiff < 1000 {
+                        return true
+                    }
                 }
-                let key = "Helper.\(helper.pid)"
-                currentProcessBytes[key] = (bytes: helper.bytes, appName: appName, pid: helper.pid)
+                return false
+            }
+            
+            // 如果没有匹配的Electron进程，才添加Helper进程
+            if !hasMatchedElectron {
+                for helper in helpers {
+                    let key = "Helper.\(helper.pid)"
+                    currentProcessBytes[key] = (bytes: helper.bytes, appName: appName, pid: helper.pid)
+                }
             }
         }
         
